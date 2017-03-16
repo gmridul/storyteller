@@ -9,29 +9,31 @@ from keras.preprocessing.sequence import pad_sequences
 # In[]
 GRU_OUTPUT_DIM = 2400
 MAX_SEQ_LEN = 50
-PAD_VAL = -np.inf
+PAD_VAL = 0.0
 # In[]
 def padinput(sequence):
-    padded_sequence = pad_sequences(sequence, MAX_SEQ_LEN, value=PAD_VAL)
+    #100xn dimensional seq. 
+    padded_sequence = pad_sequences([sequence], MAX_SEQ_LEN, value=PAD_VAL)
     # padding and truncating is 'pre'
-    return padded_sequence
+    return padded_sequence[0]
 
 # In[]
 def funnytanh(x):
     return 1.7159*np.tanh(x*2/3)
 
 # In[]
-adam = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08, schedule_decay=0.004)
+adam = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08,) 
+            #scheduled_decay=0.004)
 
 def GRU_encode():
-    return GRU(
+    return GRU(32,
                units=GRU_OUTPUT_DIM, 
                activation=funnytanh, 
                return_sequence=False
               ) #more arguments to add
     
 def GRU_decode():
-    return GRU(
+    return GRU(32,
                units=GRU_OUTPUT_DIM, 
                activation=funnytanh, 
                return_sequence=True
