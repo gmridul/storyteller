@@ -10,7 +10,17 @@ import os
 import numpy as np
 import glob
 import nltk.data
+from keras.models import Sequential
+from keras.layers import Activation, Dense
+from keras.optimizers import Adam
+from keras.layers.recurrent import GRU
+from keras.layers.core import RepeatVector, Masking, Dense, Dropout
+from keras.preprocessing.sequence import pad_sequences
+from keras.layers.embeddings import Embedding
+from keras.layers.wrappers import TimeDistributed
+from nltk import FreqDist
 
+# In[]
 from gensim.models import Word2Vec
 from gensim.utils import simple_preprocess
 from nltk.tokenize import word_tokenize
@@ -22,6 +32,9 @@ STORY_BASE_FOLDER = './books_txt_full/Romance/'
 OUTPUT_FILE = 'corpus.txt'
 OUTPUT_NP_FILE = 'corpus'
 OUTPUT_NP_W2V = 'corpus_w2v'
+MAX_SEQ_LEN = 70
+PAD_VAL = 0.0
+HIDDEN_UNITS = 400
 
 def create_corpus(limit = 0):
     corpus = []
@@ -70,3 +83,65 @@ def word2vec_for_sent(corpus):
     np.save(OUTPUT_NP_W2V, w2v_corpus)
     return w2v_corpus
     
+
+# In[]
+def get_index_dict(w2v_model):
+    index_dict = {}
+    for word in w2v_model.vocab:
+        index_dict[word]= w2v_model.vocab[word].index+1
+    return index_dict
+
+def create_model(vocab_len, batch_size, depth=1):
+    #input shape for one word = (100,)
+    #input shape for sentence = (n, 100) n>=1, n<=70. can vary. we need to mask this.
+    model = Sequential()
+    model.add(
+            Embedding(
+                    vocab_len, 
+                    batch_size, 
+                    input_length=MAX_SEQ_LEN, 
+                    mask_zero=True)
+            )
+    model.add(
+            GRU(
+                    HIDDEN_UNITS
+                )
+            )  
+    model.add(RepeatVector(MAX_SEQ_LEN))
+    for _ in range(depth):
+        model.add(GRU(HIDDEN_UNITS, return_sequences=True))
+    model.add(TimeDistributed(Dense(vocab_len)))
+    model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy',
+            optimizer='rmsprop',
+            metrics=['accuracy'])    
+    return model
+
+def padinput(sequence, p_t = 'pre'):
+    #100xn dimensional seq. //signle sentence
+    padded_sequence = pad_sequences([sequence], MAX_SEQ_LEN, 
+                                    value=PAD_VAL, 
+                                    dtype='float',
+                                    padding = p_t,
+                                    truncating = p_t)
+    return padded_sequence[0]
+
+def prepare_data(sent, dict_size):
+    freq_dist = FreqDist(np.hstack(sent))
+    vocab = freq_dist.most_common(dict_size-1)
+    X_ix_to_word = [word[0] for word in vocab]
+    # Adding the word "ZERO" to the beginning of the array
+    X_ix_to_word.insert(0, 'ZERO')
+    # Adding the word 'UNK' to the end of the array (stands for UNKNOWN words)
+    X_ix_to_word.append('UNK')
+    X_word_to_ix = {word:ix for ix, word in enumerate(X_ix_to_word)}
+    for i, sentence in enumerate(sent):
+        for j, word in enumerate(sentence):
+            if word in X_word_to_ix:
+                sent[i][j] = X_word_to_ix[word]
+            else:
+                sent[i][j] = X_word_to_ix['UNK']
+    sent = pad_sequences(sent, maxlen=70, dtype='int32', value= 0)
+    return sent
+
+sent = np.load('corpus.npy')
