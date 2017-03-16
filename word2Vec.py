@@ -144,4 +144,14 @@ def prepare_data(sent, dict_size):
     sent = pad_sequences(sent, maxlen=70, dtype='int32', value= 0)
     return sent
 
-sent = np.load('corpus.npy')
+#sent = np.load('corpus.npy')
+
+#sequences = np.zeros((101, 70, 5001))
+#for i, sentence in enumerate(sent_dict[:101]):
+#    for j, word in enumerate(sentence):
+#        sequences[i, j, word] = 1
+
+#X=sent_dict[0:100]
+#Y=sequences[1:101,: ,:]
+
+#model.fit(X, Y, batch_size=2, epochs=20, verbose=1)
