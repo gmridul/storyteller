@@ -41,12 +41,25 @@ def norm_weight(nin,nout=None, scale=0.1, ortho=True):
         W = numpy.random.uniform(low=-scale, high=scale, size=(nin, nout))
     return W.astype('float32')
 # In[]
+def init_tparams(params):
+    """
+    Initialize Theano shared variables according to the initial parameters
+    """
+    tparams = OrderedDict()
+    for kk, pp in params.items():
+        tparams[kk] = theano.shared(params[kk], name=kk)
+    return tparams
+
+# In[]
 params = OrderedDict()
 options = OrderedDict()
 options['n_words'] = 20000
 options['dim_word'] = 620
 params['Wemb'] = norm_weight(options['n_words'], options['dim_word'])
 # In[]
-emb = params['Wemb']
 x = tensor.matrix('x', dtype='int64')
+tparams = init_tparams(params)
+n_timesteps = x.shape[0]
+n_samples = x.shape[1]
+emb = tparams['Wemb'][x.flatten()].reshape([n_timesteps, n_samples, options['dim_word']])
 f_emb = theano.function([x], emb, name='f_emb')
