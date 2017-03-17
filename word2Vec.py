@@ -32,7 +32,7 @@ STORY_BASE_FOLDER = './books_txt_full/Romance/'
 OUTPUT_FILE = 'corpus.txt'
 OUTPUT_NP_FILE = 'corpus'
 OUTPUT_NP_W2V = 'corpus_w2v'
-MAX_SEQ_LEN = 70
+MAX_SEQ_LEN = 30
 PAD_VAL = 0.0
 HIDDEN_UNITS = 400
 
@@ -129,6 +129,7 @@ def create_model(vocab_len, batch_size,
             metrics=['accuracy'])    
     return model
 
+
 def padinput(sequence, p_t = 'pre'):
     #100xn dimensional seq. //signle sentence
     padded_sequence = pad_sequences([sequence], MAX_SEQ_LEN, 
@@ -153,7 +154,7 @@ def prepare_data(sent, dict_size):
                 sent[i][j] = X_word_to_ix[word]
             else:
                 sent[i][j] = X_word_to_ix['UNK']
-    sent = pad_sequences(sent, maxlen=70, dtype='int32', value= 0)
+    sent = pad_sequences(sent, maxlen=MAX_SEQ_LEN, dtype='int32', value= 0)
     return sent
 
 #sent = np.load(file)
@@ -172,5 +173,5 @@ def train(model, sent_dict, sent_batch_size, train_batch_size, vocab_size, start
                 Y[i, j, word] = 1
     
         print('[INFO] Training model: epoch {}th, start:{}'.format(k, st))
-        model.fit(X, Y, batch_size=train_batch_size, epochs=3, verbose=1)
+        model.fit(X, Y, batch_size=train_batch_size, epochs=1, verbose=1, validation_split = 0.2)
         model.save_weights('checkpoint_epoch_{}.hdf5'.format(k))
