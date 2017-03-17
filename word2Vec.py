@@ -91,7 +91,11 @@ def get_index_dict(w2v_model):
         index_dict[word]= w2v_model.vocab[word].index+1
     return index_dict
 
-def create_model(vocab_len, batch_size, depth=1):
+def create_model(vocab_len, batch_size, 
+                 hidden_units = HIDDEN_UNITS, 
+                 depth=1, 
+                 impl=0
+                 ):
     #input shape for one word = (100,)
     #input shape for sentence = (n, 100) n>=1, n<=70. can vary. we need to mask this.
     model = Sequential()
@@ -104,12 +108,20 @@ def create_model(vocab_len, batch_size, depth=1):
             )
     model.add(
             GRU(
-                    HIDDEN_UNITS
+                    hidden_units,
+                    implementation=impl
                 )
             )  
     model.add(RepeatVector(MAX_SEQ_LEN))
     for _ in range(depth):
-        model.add(GRU(HIDDEN_UNITS, return_sequences=True))
+        model.add(
+                GRU(
+                        hidden_units, 
+                        return_sequences=True,  
+                        implementation=impl
+                    )
+                )
+                
     model.add(TimeDistributed(Dense(vocab_len)))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy',
@@ -144,14 +156,21 @@ def prepare_data(sent, dict_size):
     sent = pad_sequences(sent, maxlen=70, dtype='int32', value= 0)
     return sent
 
-#sent = np.load('corpus.npy')
+#sent = np.load(file)
+#sent_dict = prepare_data(sent, dict_size=vocab_size)
+#model = create_model(vocab_len=vocab_size+1, batch_size=train_batch_size)
 
-#sequences = np.zeros((101, 70, 5001))
-#for i, sentence in enumerate(sent_dict[:101]):
-#    for j, word in enumerate(sentence):
-#        sequences[i, j, word] = 1
-
-#X=sent_dict[0:100]
-#Y=sequences[1:101,: ,:]
-
-#model.fit(X, Y, batch_size=2, epochs=20, verbose=1)
+def train(model, sent_dict, sent_batch_size, train_batch_size, vocab_size, start=0, end=10):
+    for k in range(start,end):
+        st = np.random.randint(len(sent_dict) - sent_batch_size -2)
+        end = st+sent_batch_size
+        
+        X = sent_dict[st:end]
+        Y = np.zeros((sent_batch_size, MAX_SEQ_LEN, vocab_size+1))
+        for i, sentence in enumerate(sent_dict[st+1:end+1]):
+            for j, word in enumerate(sentence):
+                Y[i, j, word] = 1
+    
+        print('[INFO] Training model: epoch {}th, start:{}'.format(k, st))
+        model.fit(X, Y, batch_size=train_batch_size, epochs=3, verbose=1)
+        model.save_weights('checkpoint_epoch_{}.hdf5'.format(k))
