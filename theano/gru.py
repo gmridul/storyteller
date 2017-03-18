@@ -2,6 +2,7 @@
 # In[]
 import theano
 from theano import tensor
+import numpy as np
 # In[]
 # h_prev = h_t-1
 def funnytanh(x):
@@ -139,4 +140,23 @@ def init_decoder_params(params):
     params['decoder_bck']['bz'] = theano.shared(np.zeros(num_hidden))
     
     return params
-   
+
+def init_output_layer_params(params):
+    num_hidden = params['num_hidden']
+    vocab_size = params['vocab_size']
+    params['output_fwd']['W'] = theano.shared(initial_weights(num_hidden, vocab_size))
+    params['output_fwd']['b'] = theano.shared(np.zeros(vocab_size))
+    
+    params['output_bck']['W'] = theano.shared(initial_weights(num_hidden, vocab_size))
+    params['output_bck']['b'] = theano.shared(np.zeros(vocab_size))
+    
+    return params
+
+def output_layer(params, x, activation, dec_type):
+    return activation(tensor.dot(params[dec_type]['W'], x) + params[dec_type]['b'])
+
+def linear(x):
+    return x
+
+def softmax(x):
+    
