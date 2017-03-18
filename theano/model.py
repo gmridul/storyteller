@@ -26,23 +26,24 @@ def buildModel(params):
     word_embeddings = params['word_emb'][s_curr.flatten()].reshape([timesteps_curr, num_sentences, params['word_dim']])
         
     # encoder layer
-    encoder = gru_encoder_layer(params, s_curr, s_curr_mask)
+    encoder = gru_encoder_layer(params, word_embeddings, s_curr_mask)
     
     # decoder forward
-    decoder_fwd = gru_decoder_layer_1(params, x, encoder, mask, 'decoder_fwd')
+    word_embeddings_fwd = params['word_emb'][s_next.flatten()].reshape([timesteps_next, num_sentences, params['word_dim']])
+    temp = tensor.zeros_like(word_embeddings_fwd)
+    word_embeddings_fwd = tensor.set_subtensor(temp[1:], word_embeddings_fwd[:-1])
+    decoder_fwd = gru_decoder_layer_1(params, word_embeddings_fwd, encoder, mask, 'decoder_fwd')
     
     # decoder forward
-    decoder_bck = gru_decoder_layer_1(params, x, encoder, mask, 'decoder_bck')
+    word_embeddings_bck = params['word_emb'][s_prev.flatten()].reshape([timesteps_prev, num_sentences, params['word_dim']])
+    temp = tensor.zeros_like(word_embeddings_bck)
+    word_embeddings_bck = tensor.set_subtensor(temp[1:], word_embeddings_bck[:-1])
+    decoder_bck = gru_decoder_layer_1(params, word_embeddings_bck, encoder, mask, 'decoder_bck')
     
     # word probablities (fwd)
     out_linear_fwd = output_layer(params, decoder_fwd, linear, 'output_fwd')
     
     # word probablities (bck)
     out_linear_bck = output_layer(params, decoder_bck, linear, 'output_bck')
-    
-    
-
-    
-    
     
     
