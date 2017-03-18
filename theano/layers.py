@@ -157,6 +157,3 @@ def output_layer(params, x, activation, dec_type):
 
 def linear(x):
     return x
-
-def softmax(x):
-    
