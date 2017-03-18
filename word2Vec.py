@@ -11,7 +11,8 @@ import numpy as np
 import glob
 import nltk.data
 from keras.models import Sequential
-from keras.layers import Activation, Dense
+from keras.models import Model
+from keras.layers import Activation, Dense, Input
 from keras.optimizers import Adam
 from keras.layers.recurrent import GRU
 from keras.layers.core import RepeatVector, Masking, Dense, Dropout
@@ -19,6 +20,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers.embeddings import Embedding
 from keras.layers.wrappers import TimeDistributed
 from nltk import FreqDist
+
 
 # In[]
 from gensim.models import Word2Vec
@@ -32,7 +34,7 @@ STORY_BASE_FOLDER = './books_txt_full/Romance/'
 OUTPUT_FILE = 'corpus.txt'
 OUTPUT_NP_FILE = 'corpus'
 OUTPUT_NP_W2V = 'corpus_w2v'
-MAX_SEQ_LEN = 70
+MAX_SEQ_LEN = 30
 PAD_VAL = 0.0
 HIDDEN_UNITS = 400
 
@@ -91,7 +93,11 @@ def get_index_dict(w2v_model):
         index_dict[word]= w2v_model.vocab[word].index+1
     return index_dict
 
-def create_model(vocab_len, batch_size, depth=1):
+def create_model(vocab_len, batch_size, 
+                 hidden_units = HIDDEN_UNITS, 
+                 depth=1, 
+                 impl=0
+                 ):
     #input shape for one word = (100,)
     #input shape for sentence = (n, 100) n>=1, n<=70. can vary. we need to mask this.
     model = Sequential()
@@ -104,17 +110,42 @@ def create_model(vocab_len, batch_size, depth=1):
             )
     model.add(
             GRU(
-                    HIDDEN_UNITS
+                    hidden_units,
+                    implementation=impl
                 )
             )  
     model.add(RepeatVector(MAX_SEQ_LEN))
     for _ in range(depth):
-        model.add(GRU(HIDDEN_UNITS, return_sequences=True))
+        model.add(
+                GRU(
+                        hidden_units, 
+                        return_sequences=True,  
+                        implementation=impl
+                    )
+                )
+                
     model.add(TimeDistributed(Dense(vocab_len)))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy',
             optimizer='rmsprop',
             metrics=['accuracy'])    
+    return model
+
+def create_model_bidirectional(vocab_len, batch_size, 
+                 hidden_units = HIDDEN_UNITS, 
+                 depth=1, 
+                 impl=0
+                 ):
+    main_input = Input(shape=(MAX_SEQ_LEN,), dtype='int32', name='main_input')
+    word_embedding = Embedding(input_dim=vocab_len,output_dim=batch_size,input_length=MAX_SEQ_LEN,mask_zero=True)(main_input)
+    encoder = GRU(units=hidden_units,implementation=impl,return_sequences=False)(word_embedding)
+    expand_encoder = RepeatVector(n=MAX_SEQ_LEN)(encoder)
+    
+    forward_decoder = GRU(units=hidden_units,implementation=impl,return_sequences=True)(expand_encoder)
+    reverse_decoder = GRU(units=hidden_units,implementation=impl,return_sequences=True)(expand_encoder)
+    forward_softmax = Activation('softmax')(TimeDistributed(Dense(vocab_len))(forward_decoder))
+    reverse_softmax = Activation('softmax')(TimeDistributed(Dense(vocab_len))(reverse_decoder))
+    model = Model(inputs=[main_input], outputs=[forward_softmax, reverse_softmax])
     return model
 
 def padinput(sequence, p_t = 'pre'):
@@ -141,17 +172,24 @@ def prepare_data(sent, dict_size):
                 sent[i][j] = X_word_to_ix[word]
             else:
                 sent[i][j] = X_word_to_ix['UNK']
-    sent = pad_sequences(sent, maxlen=70, dtype='int32', value= 0)
+    sent = pad_sequences(sent, maxlen=MAX_SEQ_LEN, dtype='int32', value= 0)
     return sent
 
-#sent = np.load('corpus.npy')
+#sent = np.load(file)
+#sent_dict = prepare_data(sent, dict_size=vocab_size)
+#model = create_model(vocab_len=vocab_size+1, batch_size=train_batch_size)
 
-#sequences = np.zeros((101, 70, 5001))
-#for i, sentence in enumerate(sent_dict[:101]):
-#    for j, word in enumerate(sentence):
-#        sequences[i, j, word] = 1
-
-#X=sent_dict[0:100]
-#Y=sequences[1:101,: ,:]
-
-#model.fit(X, Y, batch_size=2, epochs=20, verbose=1)
+def train(model, sent_dict, sent_batch_size, train_batch_size, vocab_size, start=0, end=10):
+    for k in range(start,end):
+        st = np.random.randint(len(sent_dict) - sent_batch_size -2)
+        end = st+sent_batch_size
+        
+        X = sent_dict[st:end]
+        Y = np.zeros((sent_batch_size, MAX_SEQ_LEN, vocab_size+1))
+        for i, sentence in enumerate(sent_dict[st+1:end+1]):
+            for j, word in enumerate(sentence):
+                Y[i, j, word] = 1
+    
+        print('[INFO] Training model: epoch {}th, start:{}'.format(k, st))
+        model.fit(X, Y, batch_size=train_batch_size, epochs=1, verbose=1, validation_split = 0.2)
+        model.save_weights('checkpoint_epoch_{}.hdf5'.format(k))
