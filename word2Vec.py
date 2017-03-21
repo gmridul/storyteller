@@ -32,9 +32,9 @@ STORY_BASE_FOLDER = './books_txt_full/Romance/'
 OUTPUT_FILE = 'corpus.txt'
 OUTPUT_NP_FILE = 'corpus'
 OUTPUT_NP_W2V = 'corpus_w2v'
-MAX_SEQ_LEN = 30
+MAX_SEQ_LEN = 20
 PAD_VAL = 0.0
-HIDDEN_UNITS = 400
+HIDDEN_UNITS = 1000
 
 def create_corpus(limit = 0):
     corpus = []
@@ -104,12 +104,15 @@ def create_model(vocab_len, batch_size,
                     vocab_len, 
                     batch_size, 
                     input_length=MAX_SEQ_LEN, 
-                    mask_zero=True)
+                    mask_zero=True,
+                    #batch_input_shape=(batch_size, MAX_SEQ_LEN)
+                    )
             )
     model.add(
             GRU(
                     hidden_units,
-                    implementation=impl
+                    implementation=impl,
+                    #stateful=True,
                 )
             )  
     model.add(RepeatVector(MAX_SEQ_LEN))
@@ -118,14 +121,15 @@ def create_model(vocab_len, batch_size,
                 GRU(
                         hidden_units, 
                         return_sequences=True,  
-                        implementation=impl
+                        implementation=impl,
+                        #stateful=True
                     )
                 )
                 
     model.add(TimeDistributed(Dense(vocab_len)))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy',
-            optimizer='rmsprop',
+            optimizer='nadam',
             metrics=['accuracy'])    
     return model
 
@@ -161,17 +165,43 @@ def prepare_data(sent, dict_size):
 #sent_dict = prepare_data(sent, dict_size=vocab_size)
 #model = create_model(vocab_len=vocab_size+1, batch_size=train_batch_size)
 
-def train(model, sent_dict, sent_batch_size, train_batch_size, vocab_size, start=0, end=10):
-    for k in range(start,end):
-        st = np.random.randint(len(sent_dict) - sent_batch_size -2)
-        end = st+sent_batch_size
-        
-        X = sent_dict[st:end]
-        Y = np.zeros((sent_batch_size, MAX_SEQ_LEN, vocab_size+1))
-        for i, sentence in enumerate(sent_dict[st+1:end+1]):
-            for j, word in enumerate(sentence):
-                Y[i, j, word] = 1
+def train(model, sent_dict, sent_batch_size, train_batch_size, vocab_size, loops=10, out_epochs = 1):
+    val_st = loops*sent_batch_size
+    X_val = sent_dict[val_st:-1]
+    Y_val = np.zeros((len(X_val), MAX_SEQ_LEN, vocab_size+1))
+    for i, sentence in enumerate(sent_dict[val_st+1:]):
+        non_zero_j=0
+        for j, word in enumerate(sentence):
+            if word != 0:
+                Y_val[i, non_zero_j, word] = 1
+                non_zero_j+=1
+        for p in range(non_zero_j, MAX_SEQ_LEN):
+            Y_val[i, p, 0] = 1
     
-        print('[INFO] Training model: epoch {}th, start:{}'.format(k, st))
-        model.fit(X, Y, batch_size=train_batch_size, epochs=1, verbose=1, validation_split = 0.2)
-        model.save_weights('checkpoint_epoch_{}.hdf5'.format(k))
+    for num_epoch in range(out_epochs):
+        for k in range(loops):
+            #st = np.random.randint(len(sent_dict) - sent_batch_size -2)
+            #end = st+sent_batch_size
+            st = k*sent_batch_size
+            end = (k+1)*sent_batch_size
+            X = sent_dict[st:end]
+            Y = np.zeros((sent_batch_size, MAX_SEQ_LEN, vocab_size+1))
+            for i, sentence in enumerate(sent_dict[st+1:end+1]):
+                non_zero_j=0
+                for j, word in enumerate(sentence):
+                    if word != 0:
+                        Y[i, non_zero_j, word] = 1
+                        non_zero_j+=1
+                #print(non_zero_j)
+                for p in range(non_zero_j, MAX_SEQ_LEN):
+                    Y[i, p, 0] = 1
+        
+            print('[INFO] Training model: epoch {}th, start:{}'.format(num_epoch, st))
+            model.fit(
+                    X, Y, 
+                    batch_size=train_batch_size, 
+                    epochs=2, 
+                    verbose=1, 
+                    validation_data =(X_val, Y_val))
+        model.save('model_{}'.format(num_epoch))
+    return model
