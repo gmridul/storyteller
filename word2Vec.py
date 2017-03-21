@@ -11,7 +11,8 @@ import numpy as np
 import glob
 import nltk.data
 from keras.models import Sequential
-from keras.layers import Activation, Dense
+from keras.models import Model
+from keras.layers import Activation, Dense, Input
 from keras.optimizers import Adam
 from keras.layers.recurrent import GRU
 from keras.layers.core import RepeatVector, Masking, Dense, Dropout
@@ -19,6 +20,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers.embeddings import Embedding
 from keras.layers.wrappers import TimeDistributed
 from nltk import FreqDist
+
 
 # In[]
 from gensim.models import Word2Vec
@@ -133,6 +135,22 @@ def create_model(vocab_len, batch_size,
             metrics=['accuracy'])    
     return model
 
+def create_model_bidirectional(vocab_len, batch_size, 
+                 hidden_units = HIDDEN_UNITS, 
+                 depth=1, 
+                 impl=0
+                 ):
+    main_input = Input(shape=(MAX_SEQ_LEN,), dtype='int32', name='main_input')
+    word_embedding = Embedding(input_dim=vocab_len,output_dim=batch_size,input_length=MAX_SEQ_LEN,mask_zero=True)(main_input)
+    encoder = GRU(units=hidden_units,implementation=impl,return_sequences=False)(word_embedding)
+    expand_encoder = RepeatVector(n=MAX_SEQ_LEN)(encoder)
+    
+    forward_decoder = GRU(units=hidden_units,implementation=impl,return_sequences=True)(expand_encoder)
+    reverse_decoder = GRU(units=hidden_units,implementation=impl,return_sequences=True)(expand_encoder)
+    forward_softmax = Activation('softmax')(TimeDistributed(Dense(vocab_len))(forward_decoder))
+    reverse_softmax = Activation('softmax')(TimeDistributed(Dense(vocab_len))(reverse_decoder))
+    model = Model(inputs=[main_input], outputs=[forward_softmax, reverse_softmax])
+    return model
 
 def padinput(sequence, p_t = 'pre'):
     #100xn dimensional seq. //signle sentence

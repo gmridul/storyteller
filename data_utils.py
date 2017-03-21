@@ -31,7 +31,6 @@ def batch_gen(x, a, p, batch_size):
         for i in range(0, len(x), batch_size):
             if (i+1)*batch_size < len(x):
                 yield x[i : (i+1)*batch_size ].T, a[i : (i+1)*batch_size ].T, p[i : (i+1)*batch_size ].T
-
 '''
  generate batches, by random sampling a bunch of items
     yield (x_gen, y_gen)
