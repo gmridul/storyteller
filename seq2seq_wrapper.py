@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import sys
 
-
+# In[]
 class Seq2Seq(object):
 
     def __init__(self, xseq_len, yseq_len, 
