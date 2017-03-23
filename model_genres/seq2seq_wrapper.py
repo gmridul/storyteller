@@ -46,10 +46,11 @@ class Seq2Seq(object):
             self.keep_prob = tf.placeholder(tf.float32)
             # define the basic cell
             basic_cell = tf.contrib.rnn.DropoutWrapper(
-                    tf.contrib.rnn.BasicLSTMCell(emb_dim+1, state_is_tuple=True),
+                    tf.contrib.rnn.GRUCell(emb_dim),
                     output_keep_prob=self.keep_prob)
+
             # stack cells together : n layered model
-            stacked_lstm = tf.contrib.rnn.MultiRNNCell([basic_cell]*num_layers, state_is_tuple=True)
+            stacked_gru = tf.contrib.rnn.MultiRNNCell([basic_cell]*num_layers, state_is_tuple=True)
 
             #print(self.dec_ip)
             #print(self.dec_aux)
@@ -60,14 +61,14 @@ class Seq2Seq(object):
             with tf.variable_scope('decoder') as scope:
                 # build the seq2seq model 
                 #  inputs : encoder, decoder inputs, LSTM cell type, vocabulary sizes, embedding dimensions
-                self.decode_outputs, self.decode_states = embedding_rnn_seq2seq_aux(self.enc_ip,self.dec_ip, self.dec_aux, stacked_lstm,
+                self.decode_outputs, self.decode_states = embedding_rnn_seq2seq_aux(self.enc_ip,self.dec_ip, self.dec_aux, stacked_gru,
                                                     xvocab_size, yvocab_size, emb_dim)
                 # share parameters
                 scope.reuse_variables() 
                 # testing model, where output of previous timestep is fed as input 
                 #  to the next timestep
                 self.decode_outputs_test, self.decode_states_test = embedding_rnn_seq2seq_aux(
-                    self.enc_ip, self.dec_ip, self.dec_aux, stacked_lstm, xvocab_size, yvocab_size,emb_dim,
+                    self.enc_ip, self.dec_ip, self.dec_aux, stacked_gru, xvocab_size, yvocab_size,emb_dim,
                     feed_previous=True)
 
             # now, for training,
