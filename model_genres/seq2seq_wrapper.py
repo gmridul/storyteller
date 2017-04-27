@@ -182,8 +182,10 @@ class Seq2Seq(object):
         return sess
 
     # prediction
-    def predict(self, sess, X):
+    def predict(self, sess, X, A):
         feed_dict = {self.enc_ip[t]: X[t] for t in range(self.xseq_len)}
+        feed_dict.update({self.dec_aux[t]: A[t] for t in range(self.yseq_len)})
+        
         feed_dict[self.keep_prob] = 1.
         dec_op_v = sess.run(self.decode_outputs_test, feed_dict)
         # dec_op_v is a list; also need to transpose 0,1 indices 

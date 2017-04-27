@@ -91,11 +91,14 @@ np.random.shuffle(valid_data)
 
 xseq_len = rom_fil_data[ids['train']][0][ids['curr']].shape[-1]
 yseq_len = rom_fil_data[ids['train']][0][ids['next']].shape[-1]
-batch_size = 32
 xvocab_size = 20002 #len(horror_data[ids['rommancemetadata']]['idx2w'])  
 yvocab_size = xvocab_size
+'''
+batch_size = 32
 emb_dim = 1536
-
+'''
+batch_size = 4
+emb_dim = 10
 # In[]
 import seq2seq_wrapper
 
@@ -121,7 +124,7 @@ model = seq2seq_wrapper.Seq2Seq(xseq_len=xseq_len,
 
 val_batch_gen = data_utils.rand_batch_gen(valid_data[:,1,:], valid_data[:,2,:], valid_data[:,3,:], 100)
 #test_batch_gen = data_utils.rand_batch_gen(small_testX, small_testY, small_testAx, 100)
-train_batch_gen = data_utils.rand_batch_gen(train_data[:,1,:], train_data[:,2,:], train_data[:,3,:], batch_size)
+train_batch_gen = data_utils.rand_batch_gen(train_data[:,1,:][:40], train_data[:,2,:][:40], train_data[:,3,:][:40], batch_size)
 #train_batch_gen_story = data_utils.rand_batch_gen(trainX_filter_10, trainN_filter_10, trainAx_filter_10, 1)
 
 # In[ ]:
@@ -146,7 +149,9 @@ model.epochs
 # In[43]:
 
 input_ = train_batch_gen.__next__()[0]
-output = model.predict(sess, input_)
+aux_ = train_batch_gen.__next__()[2]
+
+output = model.predict(sess, input_, aux_)
 print(output.shape)
 
 
