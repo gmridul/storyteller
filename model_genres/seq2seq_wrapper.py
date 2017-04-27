@@ -4,8 +4,8 @@ import sys
 from myseq2seq import embedding_rnn_seq2seq_aux
 class Seq2Seq(object):
 
-    def __init__(self, xseq_len, yseq_len, 
-            xvocab_size, yvocab_size,
+    def __init__(self, xseq_len, yseq_len, zseq_len,
+            xvocab_size, yvocab_size, zvocab_size,
             emb_dim, num_layers, ckpt_path,
             lr=0.0001, 
             epochs=1000, model_name='seq2seq_model'):
@@ -13,6 +13,7 @@ class Seq2Seq(object):
         # attach these arguments to self
         self.xseq_len = xseq_len
         self.yseq_len = yseq_len
+        self.zseq_len = zseq_len
         self.ckpt_path = ckpt_path
         self.epochs = epochs
         self.model_name = model_name
@@ -33,14 +34,22 @@ class Seq2Seq(object):
             self.labels = [ tf.placeholder(shape=[None,], 
                             dtype=tf.int64, 
                             name='ei_{}'.format(t)) for t in range(yseq_len) ]
-
+           
+            #  labels that represent the real outputs
+            self.labels_bwd = [ tf.placeholder(shape=[None,], 
+                            dtype=tf.int64, 
+                            name='eib_{}'.format(t)) for t in range(zseq_len) ]
             #  decoder inputs : 'GO' + [ y1, y2, ... y_t-1 ]
             self.dec_ip = [ tf.zeros_like(self.enc_ip[0], dtype=tf.int64, name='GO') ] + self.labels[:-1]
+            self.dec_ip_bwd = [ tf.zeros_like(self.enc_ip[0], dtype=tf.int64, name='GO') ] + self.labels_bwd[:-1]
             
             self.dec_aux= [ tf.placeholder(shape=[None,], 
                             dtype=tf.float32, 
                             name='aux_{}'.format(t)) for t in range(yseq_len) ]
-
+            
+            self.dec_aux_bwd= [ tf.placeholder(shape=[None,], 
+                            dtype=tf.float32, 
+                            name='auxb_{}'.format(t)) for t in range(zseq_len) ]
 
             # Basic LSTM cell wrapped in Dropout Wrapper
             self.keep_prob = tf.placeholder(tf.float32)
@@ -69,6 +78,22 @@ class Seq2Seq(object):
                 #  to the next timestep
                 self.decode_outputs_test, self.decode_states_test = embedding_rnn_seq2seq_aux(
                     self.enc_ip, self.dec_ip, self.dec_aux, stacked_gru, xvocab_size, yvocab_size,emb_dim,
+<<<<<<< HEAD
+=======
+                    feed_previous=True)
+                
+            with tf.variable_scope('decoder_bwd') as scope:
+                # build the seq2seq model 
+                #  inputs : encoder, decoder inputs, LSTM cell type, vocabulary sizes, embedding dimensions
+                self.decode_outputs_bwd, self.decode_states_bwd = embedding_rnn_seq2seq_aux(self.enc_ip,self.dec_ip_bwd, self.dec_aux_bwd, stacked_gru,
+                                                    xvocab_size, zvocab_size, emb_dim)
+                # share parameters
+                scope.reuse_variables() 
+                # testing model, where output of previous timestep is fed as input 
+                #  to the next timestep
+                self.decode_outputs_test_bwd, self.decode_states_test_bwd = embedding_rnn_seq2seq_aux(
+                    self.enc_ip, self.dec_ip_bwd, self.dec_aux_bwd, stacked_gru, xvocab_size, zvocab_size,emb_dim,
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
                     feed_previous=True)
 
             # now, for training,
@@ -77,7 +102,10 @@ class Seq2Seq(object):
             # weighted loss
             #  TODO : add parameter hint
             loss_weights = [ tf.ones_like(label, dtype=tf.float32) for label in self.labels ]
-            self.loss = tf.contrib.legacy_seq2seq.sequence_loss(self.decode_outputs, self.labels, loss_weights, yvocab_size)
+            loss_weights_bwd = [ tf.ones_like(label, dtype=tf.float32) for label in self.labels_bwd ]
+
+            self.loss = tf.contrib.legacy_seq2seq.sequence_loss(self.decode_outputs, self.labels, loss_weights, yvocab_size) \
+                    + tf.contrib.legacy_seq2seq.sequence_loss(self.decode_outputs_bwd, self.labels_bwd, loss_weights_bwd, zvocab_size)
             # train op to minimize the loss
             self.train_op = tf.train.AdamOptimizer(learning_rate=lr).minimize(self.loss)
             #global_step = tf.Variable(0,name='global_step',trainable=False)
@@ -96,38 +124,41 @@ class Seq2Seq(object):
     '''
 
     # get the feed dictionary
-    def get_feed(self, X, Y, A, keep_prob):
+    def get_feed(self, X, Y, Z, A, keep_prob):
         feed_dict = {self.enc_ip[t]: X[t] for t in range(self.xseq_len)}
         feed_dict.update({self.labels[t]: Y[t] for t in range(self.yseq_len)})
+        feed_dict.update({self.labels_bwd[t]: Z[t] for t in range(self.zseq_len)})
         feed_dict.update({self.dec_aux[t]: A[t] for t in range(self.yseq_len)})
+        feed_dict.update({self.dec_aux_bwd[t]: A[t] for t in range(self.zseq_len)})
         feed_dict[self.keep_prob] = keep_prob # dropout prob
         return feed_dict
 
     # run one batch for training
     def train_batch(self, sess, train_batch_gen):
         # get batches
-        batchX, batchY, batchA= train_batch_gen.__next__()
+        batchX, batchY, batchZ, batchA= train_batch_gen.__next__()
         # build feed
-        feed_dict = self.get_feed(batchX, batchY, batchA, keep_prob=0.5)
+        feed_dict = self.get_feed(batchX, batchY, batchZ, batchA, keep_prob=0.5)
         _, loss_v = sess.run([self.train_op, self.loss], feed_dict)
         return loss_v
 
     def eval_step(self, sess, eval_batch_gen):
         # get batches
-        batchX, batchY, batchA = eval_batch_gen.__next__()
+        batchX, batchY, batchZ, batchA = eval_batch_gen.__next__()
         # build feed
-        feed_dict = self.get_feed(batchX, batchY, batchA, keep_prob=1.)
-        loss_v, dec_op_v = sess.run([self.loss, self.decode_outputs_test], feed_dict)
+        feed_dict = self.get_feed(batchX, batchY, batchZ, batchA, keep_prob=1.)
+        loss_v, dec_op_v, dec_op_v_bwd = sess.run([self.loss, self.decode_outputs_test, self.decode_outputs_test_bwd], feed_dict)
         # dec_op_v is a list; also need to transpose 0,1 indices 
         #  (interchange batch_size and timesteps dimensions
         dec_op_v = np.array(dec_op_v).transpose([1,0,2])
-        return loss_v, dec_op_v, batchX, batchY, batchA
+        dec_op_v_bwd = np.array(dec_op_v_bwd).transpose([1,0,2])
+        return loss_v, dec_op_v, dec_op_v_bwd, batchX, batchY, batchZ, batchA
 
     # evaluate 'num_batches' batches
     def eval_batches(self, sess, eval_batch_gen, num_batches):
         losses = []
         for i in range(num_batches):
-            loss_v, dec_op_v, batchX, batchY, batchA = self.eval_step(sess, eval_batch_gen)
+            loss_v, dec_op_v, decode_op_v_bwd, batchX, batchY, batchZ, batchA = self.eval_step(sess, eval_batch_gen)
             losses.append(loss_v)
         return np.mean(losses)
 
@@ -185,13 +216,18 @@ class Seq2Seq(object):
     def predict(self, sess, X, A):
         feed_dict = {self.enc_ip[t]: X[t] for t in range(self.xseq_len)}
         feed_dict.update({self.dec_aux[t]: A[t] for t in range(self.yseq_len)})
+<<<<<<< HEAD
         
+=======
+        feed_dict.update({self.dec_aux_bwd[t]: A[t] for t in range(self.zseq_len)})
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
         feed_dict[self.keep_prob] = 1.
-        dec_op_v = sess.run(self.decode_outputs_test, feed_dict)
+        dec_op_v, dec_op_v_bwd = sess.run([self.decode_outputs_test,self.decode_outputs_test_bwd], feed_dict)
         # dec_op_v is a list; also need to transpose 0,1 indices 
         #  (interchange batch_size and timesteps dimensions
         dec_op_v = np.array(dec_op_v).transpose([1,0,2])
+        dec_op_v_bwd = np.array(dec_op_v_bwd).transpose([1,0,2])
         # return the index of item with highest probability
         # return by flip of coin?? 
         #return dec_op_v
-        return np.argmax(dec_op_v, axis=2)
+        return np.argmax(dec_op_v, axis=2), np.argmax(dec_op_v_bwd, axis=2)

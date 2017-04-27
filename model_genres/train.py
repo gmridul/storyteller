@@ -29,7 +29,11 @@ def AaneDo(*arg):
     return True
 
 def filterit(c, p, n, label, howmany, filter_func):
+<<<<<<< HEAD
     return [[p[i], c[i], n[i], np.full(len(n[0]),label)] for i in range(howmany) if filter_func(p[i], c[i], n[i])]
+=======
+    return [[p[i], c[i], n[i], np.full(len(n[0]),label, dtype=int)] for i in range(howmany) if filter_func(p[i], c[i], n[i])]
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
     
 # load data from pickle and npy files
 def getdata(genre):
@@ -69,6 +73,7 @@ def filter_data(train, valid, test, label, filter_func):
     return np.array(train_data), np.array(valid_data), np.array(test_data)
     
 # In[17]
+<<<<<<< HEAD
 romance_data = getdata("romance")
 horror_data = getdata("horror")
 label_rom, label_hor = 1, -1
@@ -77,6 +82,18 @@ rom_fil_data = filter_data(romance_data[0], romance_data[1], romance_data[2], la
 hor_fil_data = filter_data(horror_data[0],  horror_data[1],  horror_data[2],  label_hor, filter10)
 # In[]
 ids = {'train':0, 'valid':1, 'test':2, 'metadata':3,'prev':0, 'curr':1, 'next':2, 'label':3}
+=======
+ids = {'train':0, 'valid':1, 'test':2, 'metadata':3,'prev':0, 'curr':1, 'next':2, 'label':3}
+romance_data = getdata("romance")
+horror_data = getdata("horror")
+label_rom, label_hor = 1, -1
+hor_metadata = horror_data[ids['metadata']]
+rom_metadata = romance_data[ids['metadata']]
+rom_fil_data = filter_data(romance_data[0], romance_data[1], romance_data[2], label_rom, filter10)
+hor_fil_data = filter_data(horror_data[0],  horror_data[1],  horror_data[2],  label_hor, filter10)
+# In[]
+
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
 
 rom_train_data = rom_fil_data[ids['train']]
 hor_train_data = hor_fil_data[ids['train']]
@@ -91,6 +108,7 @@ np.random.shuffle(valid_data)
 
 xseq_len = rom_fil_data[ids['train']][0][ids['curr']].shape[-1]
 yseq_len = rom_fil_data[ids['train']][0][ids['next']].shape[-1]
+<<<<<<< HEAD
 xvocab_size = 20002 #len(horror_data[ids['rommancemetadata']]['idx2w'])  
 yvocab_size = xvocab_size
 '''
@@ -99,6 +117,15 @@ emb_dim = 1536
 '''
 batch_size = 4
 emb_dim = 10
+=======
+zseq_len = rom_fil_data[ids['train']][0][ids['prev']].shape[-1]
+batch_size = 64
+xvocab_size =  len(horror_data[ids['metadata']]['horroridx2w'])  
+yvocab_size = xvocab_size
+zvocab_size = xvocab_size
+emb_dim = 1536
+
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
 # In[]
 import seq2seq_wrapper
 
@@ -111,20 +138,35 @@ importlib.reload(seq2seq_wrapper)
 
 model = seq2seq_wrapper.Seq2Seq(xseq_len=xseq_len,
                                yseq_len=yseq_len,
+<<<<<<< HEAD
                                xvocab_size=xvocab_size,
                                yvocab_size=yvocab_size,
+=======
+                               zseq_len=zseq_len,
+                               xvocab_size=xvocab_size,
+                               yvocab_size=yvocab_size,
+                               zvocab_size=zvocab_size,
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
                                ckpt_path='ckpt/',
                                emb_dim=emb_dim,
                                num_layers=1,
                                 epochs=5
                                )
 
+<<<<<<< HEAD
 
 # In[21]:
 
 val_batch_gen = data_utils.rand_batch_gen(valid_data[:,1,:], valid_data[:,2,:], valid_data[:,3,:], 100)
 #test_batch_gen = data_utils.rand_batch_gen(small_testX, small_testY, small_testAx, 100)
 train_batch_gen = data_utils.rand_batch_gen(train_data[:,1,:][:40], train_data[:,2,:][:40], train_data[:,3,:][:40], batch_size)
+=======
+# In[21]:
+
+val_batch_gen = data_utils.rand_batch_gen(valid_data[:,1,:], valid_data[:,2,:], valid_data[:,0,:], valid_data[:,3,:], 100)
+#test_batch_gen = data_utils.rand_batch_gen(small_testX, small_testY, small_testAx, 100)
+train_batch_gen = data_utils.rand_batch_gen(train_data[:,1,:], train_data[:,2,:], train_data[:,0,:], train_data[:,3,:], batch_size)
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
 #train_batch_gen_story = data_utils.rand_batch_gen(trainX_filter_10, trainN_filter_10, trainAx_filter_10, 1)
 
 # In[ ]:
@@ -149,9 +191,14 @@ model.epochs
 # In[43]:
 
 input_ = train_batch_gen.__next__()[0]
+<<<<<<< HEAD
 aux_ = train_batch_gen.__next__()[2]
 
 output = model.predict(sess, input_, aux_)
+=======
+input_aux_ = train_batch_gen.__next__()[3]
+output, output_bwd = model.predict(sess, input_, input_aux_)
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
 print(output.shape)
 
 
@@ -159,10 +206,27 @@ print(output.shape)
 
 
 replies = []
+<<<<<<< HEAD
 for ii, oi in zip(input_.T, output):
     q = data_utils.decode(sequence=ii, lookup=metadata['idx2w'], separator=' ')
     decoded = data_utils.decode(sequence=oi, lookup=metadata['idx2w'], separator=' ').split(' ')
     print('q : [{0}]; a : [{1}]'.format(q, ' '.join(decoded)))
+=======
+for ii, ai, oi, oi_bwd in zip(input_.T, input_aux_.T, output, output_bwd):
+    genre = ''
+    
+    if ai[0] > 0:
+        genre = 'romance'
+        lookup_ = rom_metadata
+    else:
+        genre = 'horror'
+        lookup_ = hor_metadata
+        
+    q = data_utils.decode(sequence=ii, lookup=lookup_[genre+'idx2w'], separator=' ')
+    decoded = data_utils.decode(sequence=oi, lookup=lookup_[genre+'idx2w'], separator=' ').split(' ')
+    decoded_bwd = data_utils.decode(sequence=oi_bwd, lookup=lookup_[genre+'idx2w'], separator=' ').split(' ')
+    print('q : [{0}]; a : [{1}]; p : [{2}]'.format(q, ' '.join(decoded), ' '.join(decoded_bwd)))
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
     if decoded.count('unk') == 0:
         if decoded not in replies:
             #print('q : [{0}]; a : [{1}]'.format(q, ' '.join(decoded)))
@@ -171,11 +235,14 @@ for ii, oi in zip(input_.T, output):
 # In[ ]:
 
 
+<<<<<<< HEAD
 
 
 # In[ ]:
 
 
+=======
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226
 #input_ = val_batch_gen.__next__()[0]
 #output = model.predict(sess, input_)
 #print(output.shape)
@@ -190,6 +257,7 @@ for ii, oi in zip(input_.T, output):
 #	q = data_utils.decode(sequence=ii, lookup=metadata['idx2w'], separator=' ')
 #	decoded = data_utils.decode(sequence=oi, lookup=metadata['idx2w'], separator=' ').split(' ')
 #	print('q : [{0}]; a : [{1}]'.format(q, ' '.join(decoded)))
+<<<<<<< HEAD
     	
 # In[ ]:
 
@@ -207,3 +275,6 @@ for ii, oi in zip(input_.T, output):
 
 
 
+=======
+    	
+>>>>>>> 0d81aa006b893195d432ed2dfbbf7f930ec62226

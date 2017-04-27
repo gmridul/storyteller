@@ -9,8 +9,6 @@ import numpy as np
 import glob
 import nltk.data
 
-
-
 # In[]
 from nltk.tokenize import word_tokenize
 #from nltk.corpus import brown, movie_reviews, treebank
